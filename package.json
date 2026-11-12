@@ -18,7 +18,8 @@
     "test": "pnpm build:packages && pnpm -r --if-present --workspace-concurrency 1 test",
     "db:migrate": "pnpm --filter @hookline/db migrate:deploy",
     "db:migrate:dev": "pnpm --filter @hookline/db migrate:dev",
-    "db:seed": "pnpm --filter @hookline/db build && pnpm --filter @hookline/db seed"
+    "db:seed": "pnpm --filter @hookline/db build && pnpm --filter @hookline/db seed",
+    "e2e": "pnpm build && pnpm --filter @hookline/e2e e2e"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

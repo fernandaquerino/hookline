@@ -1,0 +1,14 @@
+{
+  "name": "@hookline/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "e2e": "playwright test --trace off",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@hookline/db": "workspace:*",
+    "@playwright/test": "1.63.0"
+  }
+}

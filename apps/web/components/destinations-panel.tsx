@@ -58,7 +58,7 @@ export function DestinationsPanel({ endpointId, destinations, onChange }: Props)
       ) : (
         <ul className="destination-list">
           {destinations.map((d) => (
-            <li key={d.id} className={d.enabled ? undefined : 'disabled'}>
+            <li key={d.id} className={d.enabled ? undefined : 'disabled'} data-testid="destination">
               <div>
                 <code>{d.url}</code>
                 <div className="muted small">
