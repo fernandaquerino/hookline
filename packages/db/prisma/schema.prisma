@@ -1,0 +1,137 @@
+// Hookline Phase 1 data model. See docs/SPEC.md section 3.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SigningScheme {
+  none
+  generic_sha256
+  github
+  stripe
+}
+
+enum SignatureStatus {
+  valid
+  invalid
+  not_configured
+}
+
+enum DeliveryStatus {
+  PENDING
+  IN_FLIGHT
+  SUCCEEDED
+  FAILED_RETRYING
+  DEAD
+}
+
+model Endpoint {
+  id                       String        @id @default(uuid()) @db.Uuid
+  name                     String
+  /// Random, unguessable path segment. Ingest URL is /in/:slug.
+  slug                     String        @unique
+  signingScheme            SigningScheme @default(none)
+  /// AES-256-GCM ciphertext (base64 of iv | tag | ciphertext). Null when signingScheme is none.
+  signingSecretEnc         String?
+  /// Header whose value identifies a unique delivery from the provider, e.g. X-GitHub-Delivery.
+  dedupeHeader             String?
+  /// When true, requests with an invalid signature are still forwarded.
+  forwardInvalidSignatures Boolean       @default(false)
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+
+  destinations Destination[]
+  requests     InboundRequest[]
+}
+
+model Destination {
+  id          String   @id @default(uuid()) @db.Uuid
+  endpointId  String   @db.Uuid
+  url         String
+  enabled     Boolean  @default(true)
+  timeoutMs   Int      @default(10000)
+  maxAttempts Int      @default(8)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  endpoint   Endpoint   @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  deliveries Delivery[]
+
+  @@index([endpointId])
+}
+
+model InboundRequest {
+  id              String          @id @default(uuid()) @db.Uuid
+  endpointId      String          @db.Uuid
+  method          String
+  path            String
+  query           String
+  /// Request headers after redaction (lower-cased names).
+  headers         Json
+  /// Raw body, at most 256 KB.
+  body            Bytes
+  contentType     String?
+  signatureStatus SignatureStatus
+  dedupeKey       String?
+  receivedAt      DateTime        @default(now())
+
+  endpoint   Endpoint   @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  deliveries Delivery[]
+
+  // Postgres treats NULLs as distinct, so this only constrains requests that carry a dedupe key.
+  @@unique([endpointId, dedupeKey])
+  @@index([endpointId, receivedAt(sort: Desc), id(sort: Desc)])
+  @@index([receivedAt])
+}
+
+model Delivery {
+  id               String         @id @default(uuid()) @db.Uuid
+  inboundRequestId String         @db.Uuid
+  destinationId    String         @db.Uuid
+  status           DeliveryStatus @default(PENDING)
+  attemptCount     Int            @default(0)
+  nextAttemptAt    DateTime?
+  /// Set when this delivery was created by a replay of another delivery.
+  replayOfId       String?        @db.Uuid
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  inboundRequest InboundRequest    @relation(fields: [inboundRequestId], references: [id], onDelete: Cascade)
+  destination    Destination       @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+  attempts       DeliveryAttempt[]
+
+  @@index([inboundRequestId])
+  @@index([destinationId])
+  @@index([status, updatedAt])
+}
+
+model DeliveryAttempt {
+  id                  String    @id @default(uuid()) @db.Uuid
+  deliveryId          String    @db.Uuid
+  attemptNumber       Int
+  startedAt           DateTime
+  durationMs          Int?
+  responseStatus      Int?
+  /// First 2 KB of the response body.
+  responseBodySnippet String?
+  error               String?
+
+  delivery Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@unique([deliveryId, attemptNumber])
+}
+
+/// Transactional outbox. A partial index on ("createdAt") WHERE "publishedAt" IS NULL is created in
+/// the SQL migration because Prisma schema cannot express partial indexes. Keep it in new migrations.
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  type        String
+  payload     Json
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+}
