@@ -163,6 +163,30 @@ describe('GET /api/endpoints/:id/stream', () => {
   });
 });
 
+describe('shutdown with open streams', () => {
+  it('ends live streams so the server can close', async () => {
+    const app = await createTestApp();
+    await app.app.listen(0, '127.0.0.1');
+    const { port } = app.app.getHttpServer().address() as AddressInfo;
+    const endpoint = await app.prisma.endpoint.create({ data: { name: 'x', slug: 'shutdown' } });
+    const ended = new Promise<void>((resolve, reject) => {
+      const req = get(
+        `http://127.0.0.1:${port}/api/endpoints/${endpoint.id}/stream`,
+        { headers: { cookie } },
+        (res) => {
+          res.resume();
+          res.on('end', resolve);
+          void app.app.close();
+        },
+      );
+      req.on('error', reject);
+    });
+    await expect(
+      Promise.race([ended, new Promise((_, r) => setTimeout(() => r(new Error('hung')), 5_000))]),
+    ).resolves.toBeUndefined();
+  });
+});
+
 describe('GET /health', () => {
   it('reports database, redis, outbox lag and queue depth', async () => {
     await t.prisma.outboxEvent.create({ data: { type: 'request.received', payload: {} } });

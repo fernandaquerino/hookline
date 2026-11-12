@@ -1,4 +1,12 @@
-import { Controller, Get, Param, ParseUUIDPipe, Req, Res } from '@nestjs/common';
+import {
+  type BeforeApplicationShutdown,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { EndpointsService } from '../endpoints/endpoints.service';
 import { LiveEventsService } from './live-events.service';
@@ -7,7 +15,10 @@ const HEARTBEAT_MS = 15_000;
 
 /** `GET /api/endpoints/:id/stream`: Server-Sent Events for new requests and delivery updates. */
 @Controller('api/endpoints/:id/stream')
-export class StreamController {
+export class StreamController implements BeforeApplicationShutdown {
+  /** Open streams, ended on shutdown: they never finish on their own and would block it. */
+  private readonly open = new Set<() => void>();
+
   constructor(
     private readonly endpoints: EndpointsService,
     private readonly live: LiveEventsService,
@@ -36,10 +47,18 @@ export class StreamController {
     });
     const heartbeat = setInterval(() => res.write(': ping\n\n'), HEARTBEAT_MS);
 
-    req.on('close', () => {
+    const close = (): void => {
+      if (!this.open.delete(close)) return;
       clearInterval(heartbeat);
       unsubscribe();
       res.end();
-    });
+    };
+    this.open.add(close);
+    req.on('close', close);
+  }
+
+  /** Runs before the HTTP server closes, so graceful shutdown does not wait for live clients. */
+  beforeApplicationShutdown(): void {
+    for (const close of [...this.open]) close();
   }
 }

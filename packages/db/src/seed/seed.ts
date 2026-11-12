@@ -16,7 +16,7 @@ interface SampleRequest {
   headers: Record<string, string>;
   signatureStatus: SignatureStatus;
   dedupeKey?: string;
-  delivery: { status: DeliveryStatus; responses: Array<number | null> };
+  delivery: { status: DeliveryStatus; responses: Array<number | null> } | null;
   minutesAgo: number;
 }
 
@@ -64,7 +64,8 @@ export async function seed(prisma: PrismaClient, encryptionKey: Buffer): Promise
         contentType: 'application/json',
         headers: { 'stripe-signature': 't=1700000000,v1=deadbeef' },
         signatureStatus: SignatureStatus.invalid,
-        delivery: { status: DeliveryStatus.DEAD, responses: [] },
+        // Invalid signatures are stored but not forwarded, so there is no delivery.
+        delivery: null,
         minutesAgo: 20,
       },
     ],
@@ -134,6 +135,7 @@ async function createEndpoint(prisma: PrismaClient, seedData: EndpointSeed): Pro
         receivedAt,
       },
     });
+    if (!request.delivery) continue;
     await prisma.delivery.create({
       data: {
         inboundRequestId: created.id,
