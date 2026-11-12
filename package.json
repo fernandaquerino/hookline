@@ -1,0 +1,36 @@
+{
+  "name": "hookline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted webhook relay and inspector for development and staging.",
+  "license": "MIT",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "build:packages": "pnpm -r --filter \"./packages/**\" --if-present build",
+    "dev": "pnpm build:packages && pnpm --parallel --filter @hookline/api --filter @hookline/dispatcher --filter @hookline/web dev",
+    "typecheck": "pnpm build:packages && pnpm -r --if-present typecheck",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm build:packages && pnpm -r --if-present --workspace-concurrency 1 test",
+    "db:migrate": "pnpm --filter @hookline/db migrate:deploy",
+    "db:migrate:dev": "pnpm --filter @hookline/db migrate:dev",
+    "db:seed": "pnpm --filter @hookline/db build && pnpm --filter @hookline/db seed",
+    "e2e": "pnpm build && pnpm --filter @hookline/e2e e2e"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "24.19.2",
+    "eslint": "9.39.5",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "globals": "16.5.0",
+    "prettier": "3.10.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.2"
+  }
+}

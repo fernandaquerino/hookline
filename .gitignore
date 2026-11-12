@@ -1,0 +1,32 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+.next/
+.next-e2e/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# env files (only .env.example is committed)
+.env
+.env.*
+!.env.example
+
+# tests
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# logs and OS noise
+*.log
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# local Redis snapshots
+dump.rdb
