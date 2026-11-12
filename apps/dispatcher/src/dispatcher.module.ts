@@ -1,7 +1,8 @@
 import { type DynamicModule, Module, type Provider } from '@nestjs/common';
 import type { RandomSource } from '@hookline/retry';
+import type { Resolver } from '@hookline/ssrf';
 import { ConfigModule } from './config/config.module';
-import type { DispatcherConfig } from './config/dispatcher-config';
+import { DISPATCHER_CONFIG, type DispatcherConfig } from './config/dispatcher-config';
 import { DeliveryProcessor, RANDOM_SOURCE } from './delivery/delivery-processor';
 import { DeliveryWorkerService } from './delivery/delivery-worker.service';
 import { HttpSender, UndiciHttpSender } from './delivery/http-sender';
@@ -16,6 +17,8 @@ export interface DispatcherModuleOptions {
   /** Start the poller and the BullMQ worker. Tests turn this off to drive steps manually. */
   runBackgroundWork?: boolean;
   random?: RandomSource;
+  /** DNS resolver override for the SSRF guard, for tests. */
+  resolver?: Resolver;
 }
 
 @Module({})
@@ -29,7 +32,15 @@ export class DispatcherModule {
       providers: [
         DeliveryQueue,
         { provide: DeliveryEnqueuer, useExisting: DeliveryQueue },
-        { provide: HttpSender, useFactory: () => new UndiciHttpSender() },
+        {
+          provide: HttpSender,
+          inject: [DISPATCHER_CONFIG],
+          useFactory: (config: DispatcherConfig) =>
+            new UndiciHttpSender({
+              allowPrivateDestinations: config.allowPrivateDestinations,
+              resolver: options.resolver,
+            }),
+        },
         { provide: RANDOM_SOURCE, useValue: options.random ?? Math.random },
         DeliveryProcessor,
         StaleDeliveryRecovery,

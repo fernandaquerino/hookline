@@ -1,4 +1,10 @@
 import type { OnModuleDestroy } from '@nestjs/common';
+import {
+  type Resolver,
+  checkDestinationUrl,
+  createGuardedLookup,
+  isDestinationNotAllowed,
+} from '@hookline/ssrf';
 import { Agent, type Dispatcher, request } from 'undici';
 
 export const RESPONSE_SNIPPET_BYTES = 2 * 1024;
@@ -56,6 +62,15 @@ async function readSnippet(body: Dispatcher.ResponseData['body'], limit: number)
   return Buffer.concat(chunks).subarray(0, limit).toString('utf8');
 }
 
+function guardMessage(error: unknown): string {
+  let current: unknown = error;
+  while (current instanceof Error) {
+    if ((current as { code?: unknown }).code === 'DESTINATION_NOT_ALLOWED') return current.message;
+    current = current.cause;
+  }
+  return String(error);
+}
+
 export function describeError(error: unknown, timeoutMs: number): string {
   if (error instanceof Error) {
     if (error.name === 'TimeoutError' || error.name === 'AbortError') {
@@ -70,16 +85,37 @@ export function describeError(error: unknown, timeoutMs: number): string {
   return String(error);
 }
 
-/** undici-based sender. Redirects are not followed; a 3xx is reported as-is. */
+export interface SenderOptions {
+  allowPrivateDestinations: boolean;
+  /** DNS resolver override, for tests. */
+  resolver?: Resolver;
+}
+
+/**
+ * undici-based sender with the SSRF guard. IP-literal URLs are checked up front (they never hit
+ * DNS); hostnames are checked by the agent's connect-time lookup, so the socket connects to the
+ * very address that passed the check. Redirects are not followed; a 3xx is reported as-is.
+ */
 export class UndiciHttpSender extends HttpSender implements OnModuleDestroy {
-  constructor(private readonly dispatcher: Dispatcher = new Agent()) {
+  private readonly dispatcher: Dispatcher;
+
+  constructor(private readonly options: SenderOptions) {
     super();
+    this.dispatcher = new Agent({
+      connect: {
+        lookup: createGuardedLookup({
+          allowPrivate: options.allowPrivateDestinations,
+          resolver: options.resolver,
+        }),
+      },
+    });
   }
 
   async send(req: OutgoingRequest): Promise<SendResult> {
     const started = performance.now();
     const elapsed = (): number => Math.round(performance.now() - started);
     try {
+      checkDestinationUrl(req.url, this.options.allowPrivateDestinations);
       const response = await request(req.url, {
         method: req.method as Dispatcher.HttpMethod,
         headers: req.headers,
@@ -99,11 +135,14 @@ export class UndiciHttpSender extends HttpSender implements OnModuleDestroy {
         durationMs: elapsed(),
       };
     } catch (error) {
+      const blocked = isDestinationNotAllowed(error);
       return {
         kind: 'error',
-        error: describeError(error, req.timeoutMs),
+        error: blocked
+          ? `DESTINATION_NOT_ALLOWED: ${guardMessage(error)}`
+          : describeError(error, req.timeoutMs),
         durationMs: elapsed(),
-        blocked: false,
+        blocked,
       };
     }
   }

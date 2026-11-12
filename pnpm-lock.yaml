@@ -102,6 +102,9 @@ importers:
       '@hookline/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@hookline/ssrf':
+        specifier: workspace:*
+        version: link:../../packages/ssrf
       '@nestjs/common':
         specifier: 11.2.9
         version: 11.2.9(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -176,6 +179,12 @@ importers:
         version: 3.2.7(@types/node@24.19.2)(jiti@2.7.0)
 
   packages/signatures:
+    devDependencies:
+      vitest:
+        specifier: 3.2.7
+        version: 3.2.7(@types/node@24.19.2)(jiti@2.7.0)
+
+  packages/ssrf:
     devDependencies:
       vitest:
         specifier: 3.2.7
