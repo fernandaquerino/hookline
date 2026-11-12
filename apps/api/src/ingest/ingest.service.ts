@@ -4,6 +4,7 @@ import { ErrorCode } from '@hookline/shared';
 import { getHeader, verifySignature, type VerifyResult } from '@hookline/signatures';
 import { ApiException } from '../common/api-exception';
 import { APP_CONFIG, type AppConfig } from '../config/app-config';
+import { LiveEventsService } from '../live/live-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { IngestStore } from './ingest.store';
 import type { IngestInput, IngestResult } from './ingest.types';
@@ -18,6 +19,7 @@ export class IngestService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly store: IngestStore,
+    private readonly live: LiveEventsService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -58,6 +60,12 @@ export class IngestService {
       const requestId = dedupeKey ? await this.store.findByDedupeKey(endpoint.id, dedupeKey) : null;
       return { kind: 'duplicate', requestId };
     }
+    // Fire and forget: the response must not wait on Redis.
+    void this.live.publish({
+      type: 'request.received',
+      endpointId: endpoint.id,
+      request: stored.summary,
+    });
     return {
       kind: 'accepted',
       requestId: stored.requestId,

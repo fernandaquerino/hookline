@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma, SignatureStatus } from '@hookline/db';
-import { OutboxEventType, type RequestReceivedPayload } from '@hookline/shared';
+import {
+  OutboxEventType,
+  type RequestReceivedPayload,
+  type RequestSummaryDto,
+} from '@hookline/shared';
+import { toRequestSummaryDto } from '../common/mappers';
 import { isUniqueViolation } from '../common/prisma-errors';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -20,6 +25,7 @@ export interface NewInboundRequest {
 export interface StoredRequest {
   requestId: string;
   deliveryIds: string[];
+  summary: RequestSummaryDto;
 }
 
 /** Persistence for ingest: request, deliveries and outbox event in one transaction. */
@@ -43,18 +49,18 @@ export class IngestStore {
             headers: input.headers,
             // Prisma's Bytes type requires a Uint8Array backed by a plain ArrayBuffer.
             body: new Uint8Array(input.body),
+            bodySize: input.body.length,
             contentType: input.contentType,
             signatureStatus: input.signatureStatus,
             dedupeKey: input.dedupeKey,
           },
-          select: { id: true },
+          omit: { body: true, headers: true },
         });
         const deliveries = await tx.delivery.createManyAndReturn({
           data: input.destinationIds.map((destinationId) => ({
             inboundRequestId: request.id,
             destinationId,
           })),
-          select: { id: true },
         });
         const deliveryIds = deliveries.map((d) => d.id);
         const payload: RequestReceivedPayload = {
@@ -68,7 +74,11 @@ export class IngestStore {
             payload: payload satisfies Prisma.InputJsonObject,
           },
         });
-        return { requestId: request.id, deliveryIds };
+        return {
+          requestId: request.id,
+          deliveryIds,
+          summary: toRequestSummaryDto({ ...request, deliveries }, input.body.length),
+        };
       });
     } catch (error) {
       if (input.dedupeKey !== null && isUniqueViolation(error)) return null;

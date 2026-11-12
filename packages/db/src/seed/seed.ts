@@ -127,6 +127,7 @@ async function createEndpoint(prisma: PrismaClient, seedData: EndpointSeed): Pro
           ...request.headers,
         },
         body: Buffer.from(request.body, 'utf8'),
+        bodySize: Buffer.byteLength(request.body, 'utf8'),
         contentType: request.contentType,
         signatureStatus: request.signatureStatus,
         dedupeKey: request.dedupeKey ?? null,

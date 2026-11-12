@@ -7,7 +7,7 @@ import { loadAppConfig } from './config/app-config';
 
 async function bootstrap(): Promise<void> {
   const config = loadAppConfig();
-  const app = await NestFactory.create(AppModule.forRoot(config), { bodyParser: false });
+  const app = await NestFactory.create(AppModule.forRoot({ config }), { bodyParser: false });
   configureApp(app);
   await app.listen(config.port);
   Logger.log(`Hookline API listening on port ${config.port}`, 'Bootstrap');

@@ -1,12 +1,14 @@
 import { All, Controller, HttpStatus, Inject, Param, Req, Res } from '@nestjs/common';
 import { ErrorCode } from '@hookline/shared';
 import type { Request, Response } from 'express';
+import { Public } from '../auth/public.decorator';
 import { ApiException } from '../common/api-exception';
 import { APP_CONFIG, type AppConfig } from '../config/app-config';
 import { IngestService } from './ingest.service';
 import { PayloadTooLargeError, readRawBody } from './raw-body';
 
 /** `ANY /in/:slug`: store the request and answer immediately; delivery happens asynchronously. */
+@Public()
 @Controller('in')
 export class IngestController {
   constructor(

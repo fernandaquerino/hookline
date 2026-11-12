@@ -14,6 +14,7 @@ import {
   OutboxEventType,
 } from '@hookline/shared';
 import { DISPATCHER_CONFIG, type DispatcherConfig } from '../config/dispatcher-config';
+import { LivePublisher } from '../live/live-publisher';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildForwardHeaders, storedHeaders } from './forward-headers';
 import { HttpSender, type SendResult } from './http-sender';
@@ -38,12 +39,14 @@ export class DeliveryProcessor {
   constructor(
     private readonly prisma: PrismaService,
     private readonly sender: HttpSender,
+    private readonly live: LivePublisher,
     @Inject(DISPATCHER_CONFIG) private readonly config: DispatcherConfig,
     @Inject(RANDOM_SOURCE) private readonly random: RandomSource,
   ) {}
 
   async process(job: DeliveryJobData): Promise<ProcessOutcome> {
     if (!(await this.claim(job))) return 'skipped';
+    void this.live.deliveryChanged(job.deliveryId);
 
     const delivery = await this.prisma.delivery.findUniqueOrThrow({
       where: { id: job.deliveryId },
@@ -88,35 +91,40 @@ export class DeliveryProcessor {
           ? DeliveryStatus.FAILED_RETRYING
           : DeliveryStatus.DEAD;
 
-    return this.prisma.$transaction(async (tx) => {
-      const moved = await tx.delivery.updateMany({
-        where: {
-          id: job.deliveryId,
-          status: DeliveryStatus.IN_FLIGHT,
-          attemptCount: job.attempt,
-        },
-        data: { status, nextAttemptAt },
-      });
-      if (moved.count === 0) return false;
-
-      await tx.deliveryAttempt.create({
-        data: { deliveryId: job.deliveryId, attemptNumber: job.attempt, ...attempt },
-      });
-      if (nextAttemptAt) {
-        const payload: DeliveryScheduledPayload = {
-          deliveryId: job.deliveryId,
-          attempt: job.attempt + 1,
-          notBefore: nextAttemptAt.toISOString(),
-        };
-        await tx.outboxEvent.create({
-          data: {
-            type: OutboxEventType.DELIVERY_SCHEDULED,
-            payload: payload satisfies Prisma.InputJsonObject,
+    return this.prisma
+      .$transaction(async (tx) => {
+        const moved = await tx.delivery.updateMany({
+          where: {
+            id: job.deliveryId,
+            status: DeliveryStatus.IN_FLIGHT,
+            attemptCount: job.attempt,
           },
+          data: { status, nextAttemptAt },
         });
-      }
-      return true;
-    });
+        if (moved.count === 0) return false;
+
+        await tx.deliveryAttempt.create({
+          data: { deliveryId: job.deliveryId, attemptNumber: job.attempt, ...attempt },
+        });
+        if (nextAttemptAt) {
+          const payload: DeliveryScheduledPayload = {
+            deliveryId: job.deliveryId,
+            attempt: job.attempt + 1,
+            notBefore: nextAttemptAt.toISOString(),
+          };
+          await tx.outboxEvent.create({
+            data: {
+              type: OutboxEventType.DELIVERY_SCHEDULED,
+              payload: payload satisfies Prisma.InputJsonObject,
+            },
+          });
+        }
+        return true;
+      })
+      .then((recorded) => {
+        if (recorded) void this.live.deliveryChanged(job.deliveryId);
+        return recorded;
+      });
   }
 
   plan(attemptNumber: number, maxAttempts: number, result: SendResult): NextStep {

@@ -75,6 +75,8 @@ model InboundRequest {
   headers         Json
   /// Raw body, at most 256 KB.
   body            Bytes
+  /// Body length in bytes, stored so request lists do not have to load bodies.
+  bodySize        Int             @default(0)
   contentType     String?
   signatureStatus SignatureStatus
   dedupeKey       String?
@@ -104,8 +106,11 @@ model Delivery {
   inboundRequest InboundRequest    @relation(fields: [inboundRequestId], references: [id], onDelete: Cascade)
   destination    Destination       @relation(fields: [destinationId], references: [id], onDelete: Cascade)
   attempts       DeliveryAttempt[]
+  replayOf       Delivery?         @relation("Replays", fields: [replayOfId], references: [id], onDelete: SetNull)
+  replays        Delivery[]        @relation("Replays")
 
   @@index([inboundRequestId])
+  @@index([replayOfId])
   @@index([destinationId])
   @@index([status, updatedAt])
 }

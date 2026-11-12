@@ -1,9 +1,10 @@
 import { DeliveryStatus } from '@hookline/db';
-import { OutboxEventType } from '@hookline/shared';
+import { type LiveEvent, OutboxEventType, liveChannel } from '@hookline/shared';
+import { Redis } from 'ioredis';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DeliveryProcessor } from '../src/delivery/delivery-processor';
 import { createIngestedRequest } from './fixtures';
-import { StubServer } from './stub-server';
+import { StubServer, waitFor } from './stub-server';
 import { createTestDispatcher, type TestDispatcher } from './test-dispatcher';
 import { resetDatabase } from './test-db';
 
@@ -224,5 +225,26 @@ describe('DeliveryProcessor', () => {
     expect(stub.received).toHaveLength(0);
     const stored = await loadDelivery(delivery.id);
     expect(stored.attempts[0]?.error).toBe('Destination is disabled');
+  });
+
+  it('publishes IN_FLIGHT and the final status on the endpoint live channel', async () => {
+    const { delivery, endpoint } = await createIngestedRequest(t.prisma, {
+      url,
+      withOutboxEvent: false,
+    });
+    const subscriber = new Redis(t.config.redisUrl);
+    const statuses: string[] = [];
+    subscriber.on('message', (_channel: string, message: string) => {
+      const event = JSON.parse(message) as LiveEvent;
+      if (event.type === 'delivery.updated') statuses.push(event.delivery.status);
+    });
+    await subscriber.subscribe(liveChannel(endpoint.id));
+    try {
+      await processor.process({ deliveryId: delivery.id, attempt: 1 });
+      await waitFor(async () => statuses.length >= 2, 3_000);
+      expect(statuses).toEqual(['IN_FLIGHT', 'SUCCEEDED']);
+    } finally {
+      subscriber.disconnect();
+    }
   });
 });

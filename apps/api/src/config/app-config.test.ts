@@ -6,6 +6,7 @@ const base = {
   DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
   HOOKLINE_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
   SESSION_SECRET: 'a-session-secret-long-enough',
+  ADMIN_PASSWORD_HASH: 'scrypt$16384$8$1$c2FsdA==$aGFzaA==',
 };
 
 describe('loadAppConfig', () => {
@@ -34,7 +35,13 @@ describe('loadAppConfig', () => {
 
   it('lists every invalid variable', () => {
     expect(() => loadAppConfig({ SESSION_SECRET: 'short' })).toThrow(
-      /DATABASE_URL[\s\S]*HOOKLINE_ENCRYPTION_KEY[\s\S]*SESSION_SECRET/,
+      /DATABASE_URL[\s\S]*HOOKLINE_ENCRYPTION_KEY[\s\S]*ADMIN_PASSWORD_HASH[\s\S]*SESSION_SECRET/,
+    );
+  });
+
+  it('requires a generated admin password hash', () => {
+    expect(() => loadAppConfig({ ...base, ADMIN_PASSWORD_HASH: 'plain-password' })).toThrow(
+      /hash-password/,
     );
   });
 

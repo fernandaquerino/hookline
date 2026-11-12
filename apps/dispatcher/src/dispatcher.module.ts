@@ -7,6 +7,7 @@ import { DeliveryProcessor, RANDOM_SOURCE } from './delivery/delivery-processor'
 import { DeliveryWorkerService } from './delivery/delivery-worker.service';
 import { HttpSender, UndiciHttpSender } from './delivery/http-sender';
 import { StaleDeliveryRecovery } from './delivery/stale-delivery-recovery';
+import { LivePublisher } from './live/live-publisher';
 import { OutboxPollerService } from './outbox/outbox-poller.service';
 import { OutboxRelayService } from './outbox/outbox-relay.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -42,6 +43,7 @@ export class DispatcherModule {
             }),
         },
         { provide: RANDOM_SOURCE, useValue: options.random ?? Math.random },
+        LivePublisher,
         DeliveryProcessor,
         StaleDeliveryRecovery,
         OutboxRelayService,

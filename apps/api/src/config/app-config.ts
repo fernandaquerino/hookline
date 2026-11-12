@@ -9,8 +9,10 @@ export interface AppConfig {
   port: number;
   databaseUrl: string;
   redisUrl: string;
+  /** BullMQ key prefix; must match the dispatcher's. */
+  queuePrefix: string;
   encryptionKey: Buffer;
-  adminPasswordHash: string | null;
+  adminPasswordHash: string;
   sessionSecret: string;
   publicIngestBaseUrl: string;
   redactHeaders: string[];
@@ -24,7 +26,11 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1).default('redis://localhost:6379'),
   HOOKLINE_ENCRYPTION_KEY: z.string().min(1),
-  ADMIN_PASSWORD_HASH: z.string().optional(),
+  ADMIN_PASSWORD_HASH: z
+    .string()
+    .trim()
+    .startsWith('scrypt$', 'must be generated with `pnpm --filter @hookline/api hash-password`'),
+  QUEUE_PREFIX: z.string().min(1).default('hookline'),
   SESSION_SECRET: z.string().min(16, 'SESSION_SECRET must be at least 16 characters'),
   PUBLIC_INGEST_BASE_URL: z.string().url().default('http://localhost:4000'),
   REDACT_HEADERS: envList.default(''),
@@ -48,7 +54,8 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     databaseUrl: e.DATABASE_URL,
     redisUrl: e.REDIS_URL,
     encryptionKey: parseEncryptionKey(e.HOOKLINE_ENCRYPTION_KEY),
-    adminPasswordHash: e.ADMIN_PASSWORD_HASH?.trim() || null,
+    adminPasswordHash: e.ADMIN_PASSWORD_HASH,
+    queuePrefix: e.QUEUE_PREFIX,
     sessionSecret: e.SESSION_SECRET,
     publicIngestBaseUrl: e.PUBLIC_INGEST_BASE_URL.replace(/\/+$/, ''),
     redactHeaders: e.REDACT_HEADERS,
