@@ -49,11 +49,23 @@ importers:
         specifier: 3.2.7
         version: 3.2.7(@types/node@24.19.2)(jiti@2.7.0)
 
+  packages/retry:
+    devDependencies:
+      vitest:
+        specifier: 3.2.7
+        version: 3.2.7(@types/node@24.19.2)(jiti@2.7.0)
+
   packages/shared:
     dependencies:
       zod:
         specifier: 3.25.76
         version: 3.25.76
+    devDependencies:
+      vitest:
+        specifier: 3.2.7
+        version: 3.2.7(@types/node@24.19.2)(jiti@2.7.0)
+
+  packages/signatures:
     devDependencies:
       vitest:
         specifier: 3.2.7
