@@ -12,6 +12,8 @@ import { OutboxPollerService } from './outbox/outbox-poller.service';
 import { OutboxRelayService } from './outbox/outbox-relay.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { DeliveryEnqueuer, DeliveryQueue } from './queue/delivery-queue';
+import { RetentionSchedulerService } from './retention/retention-scheduler.service';
+import { RetentionService } from './retention/retention.service';
 
 export interface DispatcherModuleOptions {
   config?: DispatcherConfig;
@@ -26,7 +28,9 @@ export interface DispatcherModuleOptions {
 export class DispatcherModule {
   static forRoot(options: DispatcherModuleOptions = {}): DynamicModule {
     const background: Provider[] =
-      options.runBackgroundWork === false ? [] : [OutboxPollerService, DeliveryWorkerService];
+      options.runBackgroundWork === false
+        ? []
+        : [OutboxPollerService, DeliveryWorkerService, RetentionSchedulerService];
     return {
       module: DispatcherModule,
       imports: [ConfigModule.forRoot(options.config), PrismaModule],
@@ -47,9 +51,16 @@ export class DispatcherModule {
         DeliveryProcessor,
         StaleDeliveryRecovery,
         OutboxRelayService,
+        RetentionService,
         ...background,
       ],
-      exports: [DeliveryProcessor, OutboxRelayService, StaleDeliveryRecovery, DeliveryQueue],
+      exports: [
+        DeliveryProcessor,
+        OutboxRelayService,
+        StaleDeliveryRecovery,
+        DeliveryQueue,
+        RetentionService,
+      ],
     };
   }
 }

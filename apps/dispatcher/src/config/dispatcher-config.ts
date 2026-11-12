@@ -13,6 +13,7 @@ export interface DispatcherConfig {
   retryBaseMs: number;
   retryCapMs: number;
   retentionDays: number;
+  retentionIntervalMs: number;
   outboxPollMs: number;
   outboxBatchSize: number;
   workerConcurrency: number;
@@ -29,6 +30,11 @@ const envSchema = z.object({
   RETRY_BASE_MS: z.coerce.number().int().positive().default(2_000),
   RETRY_CAP_MS: z.coerce.number().int().positive().default(600_000),
   RETENTION_DAYS: z.coerce.number().positive().default(7),
+  RETENTION_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .min(60_000)
+    .default(60 * 60_000),
   OUTBOX_POLL_MS: z.coerce.number().int().positive().default(500),
   OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(1000).default(100),
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(10),
@@ -61,6 +67,7 @@ export function loadDispatcherConfig(env: NodeJS.ProcessEnv = process.env): Disp
     retryBaseMs: e.RETRY_BASE_MS,
     retryCapMs: e.RETRY_CAP_MS,
     retentionDays: e.RETENTION_DAYS,
+    retentionIntervalMs: e.RETENTION_INTERVAL_MS,
     outboxPollMs: e.OUTBOX_POLL_MS,
     outboxBatchSize: e.OUTBOX_BATCH_SIZE,
     workerConcurrency: e.WORKER_CONCURRENCY,

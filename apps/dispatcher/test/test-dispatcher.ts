@@ -20,6 +20,7 @@ export function testDispatcherConfig(overrides: Partial<DispatcherConfig> = {}):
     retryBaseMs: 20,
     retryCapMs: 200,
     retentionDays: 7,
+    retentionIntervalMs: 60 * 60_000,
     outboxPollMs: 25,
     outboxBatchSize: 100,
     workerConcurrency: 4,

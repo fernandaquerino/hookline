@@ -10,6 +10,7 @@ describe('loadDispatcherConfig', () => {
       retryBaseMs: 2_000,
       retryCapMs: 600_000,
       retentionDays: 7,
+      retentionIntervalMs: 3_600_000,
       allowPrivateDestinations: true,
     });
   });
